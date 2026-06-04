@@ -19,6 +19,9 @@ class Item extends Model
         'stock',
         'minimum_stock',
         'description',
+        'media_url',
+        'media_public_id',
+        'media_type',
     ];
 
     protected function casts(): array

@@ -18,6 +18,15 @@
             <input name="password_confirmation" type="password" required class="mt-1 w-full rounded border-gray-300">
         </label>
         <button class="w-full rounded bg-moss px-4 py-2 font-semibold text-white">Daftar</button>
+        <div class="my-4 flex items-center gap-3 text-xs text-gray-400">
+            <span class="h-px flex-1 bg-gray-200"></span>
+            <span>atau</span>
+            <span class="h-px flex-1 bg-gray-200"></span>
+        </div>
+        <a href="{{ route('auth.google.redirect') }}" class="flex w-full items-center justify-center gap-2 rounded border border-gray-300 px-4 py-2 text-sm font-semibold text-ink">
+            <span class="grid h-5 w-5 place-items-center rounded-full bg-white text-sm font-bold text-coral">G</span>
+            Daftar dengan Google
+        </a>
         <a href="{{ route('login') }}" class="mt-4 block text-center text-sm text-moss">Sudah punya akun</a>
     </form>
 </div>

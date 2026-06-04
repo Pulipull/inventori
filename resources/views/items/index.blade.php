@@ -12,10 +12,21 @@
 </form>
 <div class="overflow-hidden rounded-lg bg-white shadow-sm">
     <table class="w-full text-left text-sm">
-        <thead class="bg-gray-50 text-gray-500"><tr><th class="p-4">Kode</th><th class="p-4">Nama</th><th class="p-4">Kategori</th><th class="p-4">Stok</th><th class="p-4">Status</th><th class="p-4"></th></tr></thead>
+        <thead class="bg-gray-50 text-gray-500"><tr><th class="p-4">Media</th><th class="p-4">Kode</th><th class="p-4">Nama</th><th class="p-4">Kategori</th><th class="p-4">Stok</th><th class="p-4">Status</th><th class="p-4"></th></tr></thead>
         <tbody>
         @foreach ($items as $item)
             <tr class="border-t">
+                <td class="p-4">
+                    @if ($item->media_url)
+                        @if ($item->media_type === 'video')
+                            <video src="{{ $item->media_url }}" class="h-14 w-20 rounded object-cover" muted></video>
+                        @else
+                            <img src="{{ $item->media_url }}" alt="{{ $item->name }}" class="h-14 w-20 rounded object-cover">
+                        @endif
+                    @else
+                        <span class="block h-14 w-20 rounded bg-gray-100"></span>
+                    @endif
+                </td>
                 <td class="p-4 font-semibold">{{ $item->code }}</td>
                 <td class="p-4">{{ $item->name }}</td>
                 <td class="p-4">{{ $item->category->name }}</td>

@@ -55,7 +55,7 @@ services:
       - inventori
 
   traefik:
-    image: traefik:v3.1
+    image: traefik:v3.7.1
     container_name: inventori_traefik
     restart: unless-stopped
     command:

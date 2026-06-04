@@ -1,7 +1,7 @@
 <?php $__env->startSection('title', $item->exists ? 'Edit Barang' : 'Tambah Barang'); ?>
 
 <?php $__env->startSection('content'); ?>
-<form method="post" action="<?php echo e($item->exists ? route('items.update', $item) : route('items.store')); ?>" class="max-w-3xl rounded-lg bg-white p-6 shadow-sm">
+<form method="post" action="<?php echo e($item->exists ? route('items.update', $item) : route('items.store')); ?>" enctype="multipart/form-data" class="max-w-3xl rounded-lg bg-white p-6 shadow-sm">
     <?php echo csrf_field(); ?>
     <?php if($item->exists): ?> <?php echo method_field('PUT'); ?> <?php endif; ?>
     <div class="grid gap-4 md:grid-cols-2">
@@ -31,6 +31,25 @@
     <label class="mt-4 block text-sm font-medium">Deskripsi
         <textarea name="description" rows="4" class="mt-1 w-full rounded border-gray-300"><?php echo e(old('description', $item->description)); ?></textarea>
     </label>
+    <div class="mt-4">
+        <label class="block text-sm font-medium">Gambar atau Video
+            <input name="media" type="file" accept="image/*,video/*" class="mt-1 block w-full rounded border border-gray-300 p-2 text-sm">
+        </label>
+
+        <?php if($item->media_url): ?>
+            <div class="mt-3 rounded border border-gray-200 p-3">
+                <?php if($item->media_type === 'video'): ?>
+                    <video src="<?php echo e($item->media_url); ?>" controls class="max-h-64 w-full rounded object-contain"></video>
+                <?php else: ?>
+                    <img src="<?php echo e($item->media_url); ?>" alt="<?php echo e($item->name); ?>" class="max-h-64 w-full rounded object-contain">
+                <?php endif; ?>
+                <label class="mt-3 flex items-center gap-2 text-sm">
+                    <input type="checkbox" name="remove_media" value="1" class="rounded border-gray-300">
+                    Hapus media saat ini
+                </label>
+            </div>
+        <?php endif; ?>
+    </div>
     <button class="mt-6 rounded bg-moss px-4 py-2 font-semibold text-white">Simpan</button>
 </form>
 <?php $__env->stopSection(); ?>
