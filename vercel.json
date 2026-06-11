@@ -5,24 +5,16 @@
     }
   },
   "routes": [
-    {
-      "src": "/build/(.*)",
-      "dest": "/public/build/$1"
-    },
-    {
-      "src": "/favicon.ico",
-      "dest": "/public/favicon.ico"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/api/index.php"
-    }
+    { "src": "/build/(.*)", "dest": "/public/build/$1" },
+    { "src": "/(.*)", "dest": "/api/index.php" }
   ],
   "env": {
+    "APP_ENV": "production",
+    "APP_DEBUG": "false",
     "LOG_CHANNEL": "stderr",
     "SESSION_DRIVER": "array",
     "VIEW_COMPILED_PATH": "/tmp",
-    "APP_ENV": "production",
-    "APP_DEBUG": "false"
+    "CACHE_STORE": "array", 
+    "ASSET_URL": "https://inventori-psi.vercel.app" 
   }
 }
