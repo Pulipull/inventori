@@ -1,5 +1,6 @@
 <?php
-// 1. Cek & Unzip vendor kalau belum ada
+
+// 1. OTOMATIS EKSTRAK VENDOR.ZIP (PENTING!)
 if (!file_exists(__DIR__ . '/../vendor/autoload.php') && file_exists(__DIR__ . '/../vendor.zip')) {
     $zip = new ZipArchive;
     if ($zip->open(__DIR__ . '/../vendor.zip') === TRUE) {
@@ -8,7 +9,11 @@ if (!file_exists(__DIR__ . '/../vendor/autoload.php') && file_exists(__DIR__ . '
     }
 }
 
-// 2. Fitur Clear Cache
+// 2. MENGALIHKAN PATH CACHE KE /tmp
+$_ENV['VIEW_COMPILED_PATH'] = '/tmp';
+putenv('VIEW_COMPILED_PATH=/tmp');
+
+// 3. Fitur Clear Cache
 if (isset($_GET['clear-cache'])) {
     require __DIR__ . '/../vendor/autoload.php';
     $app = require_once __DIR__ . '/../bootstrap/app.php';
@@ -19,5 +24,5 @@ if (isset($_GET['clear-cache'])) {
     die("Cache dibersihkan!");
 }
 
-// 3. Jalankan Laravel
+// 4. Jalankan Laravel
 require __DIR__ . '/../public/index.php';
