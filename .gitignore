@@ -5,4 +5,3 @@
 /storage/*.key
 /storage/logs/*.log
 public/storage
-/vendor
