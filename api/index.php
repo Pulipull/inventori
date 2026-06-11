@@ -1,35 +1,30 @@
 <?php
 
-// 1. OTOMATIS EKSTRAK VENDOR.ZIP
-if (!file_exists(__DIR__ . '/../vendor/autoload.php') && file_exists(__DIR__ . '/../vendor.zip')) {
-    $zip = new ZipArchive;
-    if ($zip->open(__DIR__ . '/../vendor.zip') === TRUE) {
-        $zip->extractTo(__DIR__ . '/../');
-        $zip->close();
-    }
+// Paksa PHP untuk menampilkan error ke layar agar kita bisa melihatnya
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
+// Tentukan path root proyek
+$rootPath = dirname(__DIR__);
+
+// Debugging: Cek apakah file utama ada
+if (!file_exists($rootPath . '/public/index.php')) {
+    die("Gagal: public/index.php tidak ditemukan di " . $rootPath . '/public/index.php');
 }
 
-// 2. MENGALIHKAN PATH CACHE, LOG, DAN SESSION KE /tmp
-$_ENV['VIEW_COMPILED_PATH'] = '/tmp';
-putenv('VIEW_COMPILED_PATH=/tmp');
-
-$_ENV['LOG_CHANNEL'] = 'stderr'; // Paksa log ke system output Vercel (bukan ke file)
-putenv('LOG_CHANNEL=stderr');
-
-$_ENV['SESSION_DRIVER'] = 'array'; // Jangan simpan session ke file, simpan di memori
-putenv('SESSION_DRIVER=array');
-
-// 3. Fitur Clear Cache
-if (isset($_GET['clear-cache'])) {
-    require __DIR__ . '/../vendor/autoload.php';
-    $app = require_once __DIR__ . '/../bootstrap/app.php';
-    $kernel = $app->make(Illuminate\Contracts\Console\Kernel::class);
-    $kernel->call('config:clear');
-    $kernel->call('view:clear');
-    $kernel->call('route:clear');
-    die("Cache dibersihkan!");
+if (!file_exists($rootPath . '/vendor/autoload.php')) {
+    die("Gagal: vendor/autoload.php tidak ditemukan di " . $rootPath . '/vendor/autoload.php');
 }
 
-// 4. Jalankan Laravel
-chdir(__DIR__ . '/..'); // Pindahkan "posisi berdiri" script ke root folder
-require 'public/index.php';
+// Jalankan Laravel
+require_once $rootPath . '/vendor/autoload.php';
+$app = require_once $rootPath . '/bootstrap/app.php';
+
+// Pindahkan proses ke Kernel
+$kernel = $app->make(Illuminate\Contracts\Http\Kernel::class);
+$response = $kernel->handle(
+    $request = Illuminate\Http\Request::capture()
+);
+$response->send();
+$kernel->terminate($request, $response);
