@@ -31,4 +31,5 @@ if (isset($_GET['clear-cache'])) {
 }
 
 // 4. Jalankan Laravel
-require __DIR__ . '/../public/index.php';
+chdir(__DIR__ . '/..'); // Pindahkan "posisi berdiri" script ke root folder
+require 'public/index.php';
