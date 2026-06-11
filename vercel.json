@@ -1,6 +1,6 @@
 {
   "functions": {
-    "api/**/*.php": {
+    "api/index.php": {
       "runtime": "vercel-php@0.7.3"
     }
   },
@@ -10,11 +10,11 @@
   ],
   "env": {
     "APP_ENV": "production",
-    "APP_DEBUG": "false",
+    "APP_DEBUG": "true",
     "LOG_CHANNEL": "stderr",
     "SESSION_DRIVER": "array",
     "VIEW_COMPILED_PATH": "/tmp",
-    "CACHE_STORE": "array", 
-    "ASSET_URL": "https://inventori-psi.vercel.app" 
+    "CACHE_STORE": "array",
+    "ASSET_URL": "https://inventori-psi.vercel.app"
   }
 }
