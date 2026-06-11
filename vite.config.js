@@ -8,9 +8,10 @@ export default defineConfig({
             refresh: true,
         }),
     ],
-    // Tambahkan konfigurasi build ini:
+    // TAMBAHKAN INI:
+    base: '/build/', 
     build: {
-        outDir: 'public/build', // Vercel akan mencari file di sini
+        outDir: 'public/build',
         emptyOutDir: true,
     },
 });
