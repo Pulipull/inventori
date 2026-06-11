@@ -3,7 +3,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
-    "build": "vite build"
+    "build": "vite build",
+    "vercel-build": "composer install --no-dev --prefer-dist --optimize-autoloader"
   },
   "devDependencies": {
     "@tailwindcss/forms": "^0.5.10",
