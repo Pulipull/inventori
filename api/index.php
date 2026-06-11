@@ -1,27 +1,47 @@
 <?php
 
-// Paksa PHP untuk menampilkan error ke layar agar kita bisa melihatnya
+// Tampilkan semua error ke output
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
-// Tentukan path root proyek
+// Tangkap exception apa pun
+set_exception_handler(function($e) {
+    http_response_code(500);
+    echo "<h1>Exception caught:</h1>";
+    echo "<pre>" . $e->getMessage() . "\n" . $e->getTraceAsString() . "</pre>";
+    exit;
+});
+
 $rootPath = dirname(__DIR__);
 
-// Debugging: Cek apakah file utama ada
+// Cek file penting
 if (!file_exists($rootPath . '/public/index.php')) {
-    die("Gagal: public/index.php tidak ditemukan di " . $rootPath . '/public/index.php');
+    die("ERROR: public/index.php not found at " . $rootPath . '/public/index.php');
 }
-
+if (!file_exists($rootPath . '/bootstrap/app.php')) {
+    die("ERROR: bootstrap/app.php not found");
+}
 if (!file_exists($rootPath . '/vendor/autoload.php')) {
-    die("Gagal: vendor/autoload.php tidak ditemukan di " . $rootPath . '/vendor/autoload.php');
+    die("ERROR: vendor/autoload.php not found. Run 'composer install'.");
 }
 
-// Jalankan Laravel
-require_once $rootPath . '/vendor/autoload.php';
-$app = require_once $rootPath . '/bootstrap/app.php';
+// Cek .env (tidak wajib, tapi informatif)
+$envFile = $rootPath . '/.env';
+if (!file_exists($envFile)) {
+    echo "WARNING: .env file not found. Make sure environment variables are set in Vercel.<br>";
+}
 
-// Pindahkan proses ke Kernel
+require $rootPath . '/vendor/autoload.php';
+
+$app = require $rootPath . '/bootstrap/app.php';
+
+// Override beberapa config penting untuk serverless
+$app->useStoragePath('/tmp/storage');
+$app->make('config')->set('session.driver', 'array');
+$app->make('config')->set('cache.default', 'array');
+$app->make('config')->set('view.compiled', '/tmp/views');
+
 $kernel = $app->make(Illuminate\Contracts\Http\Kernel::class);
 $response = $kernel->handle(
     $request = Illuminate\Http\Request::capture()
