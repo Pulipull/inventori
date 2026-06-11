@@ -1,6 +1,6 @@
 <?php
 
-// 1. OTOMATIS EKSTRAK VENDOR.ZIP (PENTING!)
+// 1. OTOMATIS EKSTRAK VENDOR.ZIP
 if (!file_exists(__DIR__ . '/../vendor/autoload.php') && file_exists(__DIR__ . '/../vendor.zip')) {
     $zip = new ZipArchive;
     if ($zip->open(__DIR__ . '/../vendor.zip') === TRUE) {
@@ -9,9 +9,15 @@ if (!file_exists(__DIR__ . '/../vendor/autoload.php') && file_exists(__DIR__ . '
     }
 }
 
-// 2. MENGALIHKAN PATH CACHE KE /tmp
+// 2. MENGALIHKAN PATH CACHE, LOG, DAN SESSION KE /tmp
 $_ENV['VIEW_COMPILED_PATH'] = '/tmp';
 putenv('VIEW_COMPILED_PATH=/tmp');
+
+$_ENV['LOG_CHANNEL'] = 'stderr'; // Paksa log ke system output Vercel (bukan ke file)
+putenv('LOG_CHANNEL=stderr');
+
+$_ENV['SESSION_DRIVER'] = 'array'; // Jangan simpan session ke file, simpan di memori
+putenv('SESSION_DRIVER=array');
 
 // 3. Fitur Clear Cache
 if (isset($_GET['clear-cache'])) {
