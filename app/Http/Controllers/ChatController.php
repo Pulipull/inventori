@@ -2,69 +2,85 @@
 
 namespace App\Http\Controllers;
 
-use App\Events\MessageSent;
 use App\Models\Conversation;
-use App\Models\Message;
 use App\Models\User;
+use App\Services\ChatService;
+use App\Services\ConversationAccessService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class ChatController extends Controller
 {
-    public function index(Request $request): View
+    public function index(Request $request, ChatService $chat): View
     {
-        $conversations = Conversation::with(['userOne', 'userTwo', 'messages' => fn ($query) => $query->latest()->limit(1)])
-            ->where(fn ($query) => $query->where('user_one_id', $request->user()->id)->orWhere('user_two_id', $request->user()->id))
-            ->latest()
-            ->get();
-
         return view('chat.index', [
-            'conversations' => $conversations,
-            'users' => User::where('id', '!=', $request->user()->id)->orderBy('name')->get(),
+            'conversations' => $chat->conversationsFor($request->user()),
+            'metrics' => $chat->conversationMetrics($request->user()),
+            'users' => User::whereIn('role', ['admin', 'petugas'])
+                ->where('id', '!=', $request->user()->id)
+                ->orderBy('name')
+                ->get(),
         ]);
     }
 
-    public function start(Request $request): RedirectResponse
+    public function start(Request $request, ChatService $chat): RedirectResponse
     {
-        $data = $request->validate(['user_id' => ['required', 'exists:users,id']]);
-        $ids = [auth()->id(), (int) $data['user_id']];
-        sort($ids);
-
-        $conversation = Conversation::firstOrCreate(['user_one_id' => $ids[0], 'user_two_id' => $ids[1]]);
+        $data = $request->validate([
+            'user_id' => ['required', Rule::exists('users', 'id')->whereIn('role', ['admin', 'petugas'])],
+        ]);
+        $conversation = $chat->startConversation($request->user(), User::findOrFail($data['user_id']));
 
         return redirect()->route('chat.show', $conversation);
     }
 
-    public function show(Request $request, Conversation $conversation): View
+    public function show(
+        Request $request,
+        Conversation $conversation,
+        ConversationAccessService $access,
+        ChatService $chat
+    ): View
     {
-        $this->authorizeConversation($request, $conversation);
+        $access->authorize($request->user(), $conversation);
+        $chat->markConversationAsRead($conversation, $request->user());
+        $otherUser = $conversation->otherUser($request->user());
 
         return view('chat.show', [
             'conversation' => $conversation->load(['userOne', 'userTwo', 'messages.user']),
-            'otherUser' => $conversation->otherUser($request->user()),
+            'otherUser' => $otherUser,
+            'otherReadReceipt' => $chat->readReceiptFor($conversation, $otherUser),
         ]);
     }
 
-    public function store(Request $request, Conversation $conversation): RedirectResponse
+    public function store(
+        Request $request,
+        Conversation $conversation,
+        ConversationAccessService $access,
+        ChatService $chat
+    ): RedirectResponse
     {
-        $this->authorizeConversation($request, $conversation);
-
+        $access->authorize($request->user(), $conversation);
         $data = $request->validate(['body' => ['required', 'string', 'max:2000']]);
-
-        $message = Message::create([
-            'conversation_id' => $conversation->id,
-            'user_id' => $request->user()->id,
-            'body' => $data['body'],
-        ]);
-
-        broadcast(new MessageSent($message))->toOthers();
+        $chat->sendMessage($conversation, $request->user(), $data['body']);
 
         return back();
     }
 
-    private function authorizeConversation(Request $request, Conversation $conversation): void
+    public function markRead(Request $request, Conversation $conversation, ChatService $chat): RedirectResponse|JsonResponse
     {
-        abort_unless(in_array($request->user()->id, [$conversation->user_one_id, $conversation->user_two_id], true), 403);
+        $chat->markConversationAsRead($conversation, $request->user());
+
+        if ($request->wantsJson()) {
+            return response()->json(['unread_count' => $chat->unreadCount($request->user())]);
+        }
+
+        return back();
+    }
+
+    public function unreadCount(Request $request, ChatService $chat): JsonResponse
+    {
+        return response()->json(['unread_count' => $chat->unreadCount($request->user())]);
     }
 }

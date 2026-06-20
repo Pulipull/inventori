@@ -9,7 +9,7 @@ RUN apt-get update \
 
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
-COPY composer.json ./
+COPY composer.json composer.lock ./
 RUN composer install --no-dev --prefer-dist --no-interaction --no-scripts --no-progress
 
 COPY package.json ./
@@ -17,7 +17,8 @@ RUN npm install
 
 COPY . .
 
-RUN composer dump-autoload --optimize \
+RUN rm -f bootstrap/cache/*.php \
+    && composer dump-autoload --optimize \
     && php artisan package:discover --ansi \
     && npm run build \
     && mkdir -p storage/framework/{cache,sessions,views} storage/logs bootstrap/cache \
@@ -25,4 +26,4 @@ RUN composer dump-autoload --optimize \
 
 EXPOSE 8000
 
-CMD ["sh", "-c", "test -f .env || cp .env.example .env; php artisan key:generate --force --no-interaction >/dev/null 2>&1 || true; npm run build >/dev/null 2>&1 || true; php artisan serve --host=0.0.0.0 --port=8000"]
+CMD ["sh", "-c", "test -f .env || cp .env.example .env; php artisan key:generate --force --no-interaction >/dev/null 2>&1 || true; php artisan config:clear; php artisan route:clear; php artisan cache:clear || true; php artisan event:clear; php artisan config:cache; php artisan route:cache; npm run build >/dev/null 2>&1 || true; php artisan serve --host=0.0.0.0 --port=8000"]

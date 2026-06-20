@@ -34,4 +34,8 @@ return [
             'spx' => 'SPX / Shopee Express',
         ],
     ],
+
+    'integration' => [
+        'webhook_secret' => env('INTEGRATION_WEBHOOK_SECRET'),
+    ],
 ];

@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\InventoryItemUpdated;
+use App\Events\LowStockDetected;
 use App\Models\Category;
 use App\Models\Item;
 use App\Services\CloudinaryMediaService;
@@ -49,6 +51,8 @@ class ItemController extends Controller
     public function update(Request $request, Item $item, CloudinaryMediaService $cloudinary): RedirectResponse
     {
         $data = $this->validated($request, $item);
+        $previousStock = $item->stock;
+        $previousMinimumStock = $item->minimum_stock;
 
         if ($request->boolean('remove_media')) {
             $cloudinary->delete($item->media_public_id, $item->media_type);
@@ -61,6 +65,16 @@ class ItemController extends Controller
         }
 
         $item->update($data);
+        $changedFields = array_intersect_key($item->getChanges(), $data);
+        $item->refresh();
+
+        if ($changedFields !== []) {
+            InventoryItemUpdated::dispatch($item, $request->user(), $changedFields);
+        }
+
+        if ($previousStock > $previousMinimumStock && $item->stock <= $item->minimum_stock) {
+            LowStockDetected::dispatch($item, null, $previousStock, $item->stock);
+        }
 
         return redirect()->route('items.index')->with('success', 'Barang berhasil diperbarui.');
     }

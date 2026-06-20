@@ -2,7 +2,8 @@
 
 namespace App\Services;
 
-use App\Models\AppNotification;
+use App\Events\InventoryStockAdjusted;
+use App\Events\LowStockDetected;
 use App\Models\Item;
 use App\Models\StockTransaction;
 use App\Models\User;
@@ -19,6 +20,7 @@ class InventoryService
 
         return DB::transaction(function () use ($item, $user, $type, $quantity, $date, $notes) {
             $item = Item::query()->whereKey($item->id)->lockForUpdate()->firstOrFail();
+            $previousStock = $item->stock;
 
             if ($type === StockTransaction::TYPE_OUT && $item->stock < $quantity) {
                 throw new InvalidArgumentException('Stok barang tidak mencukupi.');
@@ -36,39 +38,13 @@ class InventoryService
                 'notes' => $notes,
             ]);
 
-            $this->notifyTransaction($user, $transaction);
-            $this->notifyStockStatus($item);
+            InventoryStockAdjusted::dispatch($transaction, $item, $user, $previousStock, $item->stock);
+
+            if ($previousStock > $item->minimum_stock && $item->stock <= $item->minimum_stock) {
+                LowStockDetected::dispatch($item, $transaction, $previousStock, $item->stock);
+            }
 
             return $transaction;
-        });
-    }
-
-    private function notifyTransaction(User $user, StockTransaction $transaction): void
-    {
-        AppNotification::create([
-            'user_id' => $user->id,
-            'title' => 'Transaksi berhasil',
-            'message' => 'Transaksi '.$transaction->item->name.' berhasil dicatat.',
-            'type' => 'success',
-        ]);
-    }
-
-    private function notifyStockStatus(Item $item): void
-    {
-        if ($item->stock > $item->minimum_stock) {
-            return;
-        }
-
-        $type = $item->stock <= 0 ? 'danger' : 'warning';
-        $title = $item->stock <= 0 ? 'Stok habis' : 'Stok menipis';
-
-        User::query()->where('role', 'admin')->each(function (User $admin) use ($item, $title, $type) {
-            AppNotification::create([
-                'user_id' => $admin->id,
-                'title' => $title,
-                'message' => $item->name.' tersisa '.$item->stock.' '.$item->unit.'.',
-                'type' => $type,
-            ]);
         });
     }
 }

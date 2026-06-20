@@ -9,6 +9,9 @@
             <div class="rounded p-3 {{ $message->user_id === auth()->id() ? 'ml-auto bg-moss text-white' : 'mr-auto bg-gray-100' }}">
                 <p class="text-sm">{{ $message->body }}</p>
                 <small class="opacity-75">{{ $message->user->name }} - {{ $message->created_at->format('d M Y H:i') }}</small>
+                @if ($message->user_id === auth()->id() && $otherReadReceipt?->message_id >= $message->id)
+                    <small class="mt-1 block opacity-75">Dibaca</small>
+                @endif
             </div>
         @endforeach
     </div>

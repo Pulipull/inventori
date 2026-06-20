@@ -24,10 +24,12 @@
                         $links = [
                             ...$links,
                             ['Barang', 'items.index'],
+                            ['CRM Customer', 'customers.index'],
                             ['Riwayat Transaksi', 'transactions.index'],
                             ['Laporan Stok', 'reports.stock'],
                             ['Laporan Masuk', 'reports.transactions', ['type' => 'in']],
                             ['Laporan Keluar', 'reports.transactions', ['type' => 'out']],
+                            ['Export Laporan', 'reports.exports.index'],
                             ['Notifikasi', 'notifications.index'],
                             ['Chat Internal', 'chat.index'],
                         ];

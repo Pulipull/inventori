@@ -1,6 +1,9 @@
 @extends('layouts.app')
 
 @section('title', 'Notifikasi')
+@section('actions')
+<a href="{{ route('notification-preferences.edit') }}" class="rounded bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-600">Preferensi</a>
+@endsection
 
 @section('content')
 <div class="space-y-3">

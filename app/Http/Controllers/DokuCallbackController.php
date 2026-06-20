@@ -19,7 +19,26 @@ class DokuCallbackController extends Controller
     public function handle(Request $request)
     {
         try {
-            Log::info('Doku callback received', $request->all());
+            if (! $this->dokuService->verifyCallbackSignature($request)) {
+                Log::warning('Doku callback signature invalid', [
+                    'ip' => $request->ip(),
+                    'invoice_number' => $request->input('order.invoice_number')
+                        ?? $request->input('INVOICE_NUMBER')
+                        ?? $request->input('invoice_number'),
+                ]);
+
+                return response()->json(['status' => 'error', 'message' => 'Invalid signature'], 403);
+            }
+
+            Log::info('Doku callback received', [
+                'invoice_number' => $request->input('order.invoice_number')
+                    ?? $request->input('INVOICE_NUMBER')
+                    ?? $request->input('invoice_number'),
+                'transaction_status' => $request->input('transaction.status')
+                    ?? $request->input('transaction_status')
+                    ?? $request->input('STATUS_CODE')
+                    ?? $request->input('status'),
+            ]);
 
             // Handle callback
             $result = $this->dokuService->handleCallback($request->all());

@@ -10,13 +10,65 @@
 
 @section('content')
 <div class="grid gap-4 md:grid-cols-4">
-    @foreach ([['Barang', $itemCount], ['Kategori', $categoryCount], ['Stok Menipis', $lowStockCount], ['Stok Habis', $emptyStockCount]] as [$label, $value])
+    @foreach ([['Barang', $itemCount], ['Kategori', $categoryCount], ['Customer', $customerCount], ['Follow Up Open', $openFollowUpCount], ['Follow Up Selesai', $completedFollowUpCount], ['Total Export', $reportExportCount], ['Total File Upload', $storageFileCount], ['Integration Pending', $pendingIntegrationEventCount], ['Integration Processed', $processedIntegrationEventCount], ['Notifikasi Belum Dibaca', $unreadNotificationCount], ['Percakapan Aktif', $activeConversationCount], ['Percakapan Belum Dibaca', $unreadConversationCount], ['Stok Menipis', $lowStockCount], ['Stok Habis', $emptyStockCount]] as [$label, $value])
         <div class="rounded-lg bg-white p-5 shadow-sm">
             <p class="text-sm text-gray-500">{{ $label }}</p>
             <p class="mt-2 text-3xl font-bold">{{ $value }}</p>
         </div>
     @endforeach
 </div>
+<section class="mt-6 rounded-lg bg-white p-5 shadow-sm">
+    <h2 class="mb-4 font-bold">Export Laporan Terbaru</h2>
+    <div class="space-y-3">
+        @forelse ($recentReportExports as $export)
+            <div class="flex justify-between border-b pb-3 text-sm">
+                <span>{{ $export->report_type }} oleh {{ $export->user->name }}</span>
+                <strong class="{{ $export->status === 'completed' ? 'text-moss' : ($export->status === 'failed' ? 'text-coral' : 'text-amber') }}">{{ $export->status }}</strong>
+            </div>
+        @empty
+            <p class="text-sm text-gray-500">Belum ada export laporan.</p>
+        @endforelse
+    </div>
+</section>
+<section class="mt-6 rounded-lg bg-white p-5 shadow-sm">
+    <h2 class="mb-4 font-bold">Webhook Integration Terbaru</h2>
+    <div class="space-y-3">
+        @forelse ($recentWebhookLogs as $log)
+            <div class="flex justify-between border-b pb-3 text-sm">
+                <span>{{ $log->source }} - {{ $log->event_name }}</span>
+                <strong class="{{ $log->status === 'received' ? 'text-moss' : 'text-coral' }}">{{ $log->status }}</strong>
+            </div>
+        @empty
+            <p class="text-sm text-gray-500">Belum ada webhook integration.</p>
+        @endforelse
+    </div>
+</section>
+<section class="mt-6 rounded-lg bg-white p-5 shadow-sm">
+    <h2 class="mb-4 font-bold">Upload File Terbaru</h2>
+    <div class="space-y-3">
+        @forelse ($recentStorageFiles as $file)
+            <div class="flex justify-between border-b pb-3 text-sm">
+                <span>{{ $file->filename }} oleh {{ $file->user?->name ?: '-' }}</span>
+                <strong class="text-moss">{{ number_format($file->size / 1024, 1) }} KB</strong>
+            </div>
+        @empty
+            <p class="text-sm text-gray-500">Belum ada file upload.</p>
+        @endforelse
+    </div>
+</section>
+<section class="mt-6 rounded-lg bg-white p-5 shadow-sm">
+    <h2 class="mb-4 font-bold">Aktivitas CRM Terbaru</h2>
+    <div class="space-y-3">
+        @forelse ($recentCrmActivities as $activity)
+            <div class="flex justify-between border-b pb-3 text-sm">
+                <span>{{ $activity->customer?->name ?: '-' }} - {{ $activity->description ?: $activity->type }}</span>
+                <strong class="text-moss">{{ $activity->type }}</strong>
+            </div>
+        @empty
+            <p class="text-sm text-gray-500">Belum ada aktivitas CRM.</p>
+        @endforelse
+    </div>
+</section>
 <div class="mt-6 grid gap-6 lg:grid-cols-2">
     <section class="rounded-lg bg-white p-5 shadow-sm">
         <h2 class="mb-4 font-bold">Transaksi Terbaru</h2>

@@ -4,6 +4,7 @@ namespace App\Services;
 
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Client\RequestException;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
@@ -183,6 +184,45 @@ class DokuPaymentService
                 'error' => $e->getMessage(),
             ];
         }
+    }
+
+    public function verifyCallbackSignature(Request $request): bool
+    {
+        if (! filled($this->clientId) || ! filled($this->secretKey)) {
+            return false;
+        }
+
+        $signature = (string) $request->header('Signature', '');
+        $requestId = (string) $request->header('Request-Id', '');
+        $timestamp = (string) $request->header('Request-Timestamp', '');
+        $clientId = (string) $request->header('Client-Id', '');
+
+        if ($signature === '' || $requestId === '' || $timestamp === '' || $clientId === '') {
+            return false;
+        }
+
+        if (! hash_equals((string) $this->clientId, $clientId)) {
+            return false;
+        }
+
+        $requestTarget = '/'.$request->path();
+        $body = $request->getContent();
+        $digest = base64_encode(hash('sha256', $body, true));
+
+        $headerDigest = (string) $request->header('Digest', '');
+        if ($headerDigest !== '' && ! hash_equals($digest, $headerDigest)) {
+            return false;
+        }
+
+        $component = "Client-Id:{$clientId}\n"
+            ."Request-Id:{$requestId}\n"
+            ."Request-Timestamp:{$timestamp}\n"
+            ."Request-Target:{$requestTarget}\n"
+            ."Digest:{$digest}";
+
+        $expected = 'HMACSHA256='.base64_encode(hash_hmac('sha256', $component, (string) $this->secretKey, true));
+
+        return hash_equals($expected, $signature);
     }
 
     public function mapStatusResponse(array $data): ?string

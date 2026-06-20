@@ -15,6 +15,7 @@ services:
       - traefik.http.routers.inventori.entrypoints=web
       - traefik.http.services.inventori.loadbalancer.server.port=8000
     depends_on:
+      - minio
       - reverb
     networks:
       - inventori
@@ -30,6 +31,8 @@ services:
       - .:/var/www/html
       - /var/www/html/vendor
       - /var/www/html/node_modules
+    depends_on:
+      - minio
     networks:
       - inventori
 
@@ -54,6 +57,36 @@ services:
     networks:
       - inventori
 
+  minio:
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    container_name: inventori_minio
+    restart: unless-stopped
+    env_file:
+      - .env
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    networks:
+      - inventori
+
+  minio-init:
+    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
+    container_name: inventori_minio_init
+    env_file:
+      - .env
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      until mc alias set local http://minio:9000 $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD}; do sleep 2; done;
+      mc mb --ignore-existing local/$${MINIO_BUCKET};
+      "
+    networks:
+      - inventori
+
   traefik:
     image: traefik:v3.7.1
     container_name: inventori_traefik
@@ -75,3 +108,6 @@ services:
 networks:
   inventori:
     driver: bridge
+
+volumes:
+  minio_data:
