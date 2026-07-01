@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Customer;
 use App\Models\User;
+use App\Services\CRMService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -15,6 +17,9 @@ use Throwable;
 
 class GoogleAuthController extends Controller
 {
+    public function __construct(private readonly CRMService $crm)
+    {
+    }
     public function redirect(Request $request): RedirectResponse
     {
         try {
@@ -95,6 +100,8 @@ class GoogleAuthController extends Controller
             ->orWhere('email', $profile['email'])
             ->first();
 
+        $isNewUser = false;
+        
         if ($user) {
             $user->forceFill([
                 'google_id' => $profile['sub'],
@@ -112,7 +119,10 @@ class GoogleAuthController extends Controller
                 'password' => Hash::make(Str::random(32)),
                 'role' => 'user',
             ]);
+            $isNewUser = true;
         }
+
+        $this->ensureCrmCustomerExists($user, $isNewUser);
 
         Auth::login($user, true);
         $request->session()->regenerate();
@@ -148,5 +158,46 @@ class GoogleAuthController extends Controller
         }
 
         return $value;
+    }
+
+    private function ensureCrmCustomerExists(User $user, bool $isNewUser): void
+    {
+        try {
+            $externalId = 'GOOGLE-'.$user->google_id;
+            
+            $customer = Customer::query()
+                ->where('external_customer_id', $externalId)
+                ->orWhere('user_id', $user->id)
+                ->orWhere(fn($q) => $q->whereNotNull('email')->whereRaw('LOWER(email) = ?', [mb_strtolower($user->email)]))
+                ->first();
+
+            if ($customer) {
+                if (!$customer->user_id || $customer->external_customer_id !== $externalId) {
+                    $this->crm->updateCustomer($customer, [
+                        'user_id' => $user->id,
+                        'external_customer_id' => $externalId,
+                        'name' => $customer->name ?: $user->name,
+                        'email' => $customer->email ?: $user->email,
+                    ], $user);
+                }
+                return;
+            }
+
+            $this->crm->createCustomer([
+                'external_customer_id' => $externalId,
+                'user_id' => $user->id,
+                'source' => 'oauth_google',
+                'name' => $user->name,
+                'email' => $user->email,
+                'phone' => null,
+                'company' => null,
+                'status' => 'active',
+                'notes' => $isNewUser 
+                    ? 'Customer dibuat otomatis dari OAuth Google registration.' 
+                    : 'Customer dibuat otomatis dari OAuth Google login.',
+            ], $user);
+        } catch (Throwable $e) {
+            report($e);
+        }
     }
 }

@@ -56,13 +56,13 @@ class DokuCallbackController extends Controller
                 return response()->json(['status' => 'error', 'message' => 'Order not found'], 404);
             }
 
-            // Update order status
-            $order->update([
-                'status' => $result['status'],
-                'doku_transaction_id' => $result['transaction_id'],
-                'doku_response' => $result['response'],
-                'paid_at' => $result['status'] === 'paid' ? now() : $order->paid_at,
-            ]);
+            // Update order status and run payment business integrations.
+            $order = $this->dokuService->applyOrderStatus(
+                $order,
+                $result['status'],
+                $result['transaction_id'],
+                $result['response'],
+            );
 
             Log::info('Order updated from callback', [
                 'order_id' => $order->id,

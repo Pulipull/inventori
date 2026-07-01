@@ -11,6 +11,9 @@
             <option value="stock">Laporan Stok</option>
             <option value="transactions_in">Laporan Barang Masuk</option>
             <option value="transactions_out">Laporan Barang Keluar</option>
+            <option value="sales">Laporan Penjualan</option>
+            <option value="payments">Laporan Pembayaran</option>
+            <option value="revenue">Laporan Pendapatan</option>
         </select>
         <input name="date_from" type="date" class="rounded border-gray-300">
         <input name="date_to" type="date" class="rounded border-gray-300">

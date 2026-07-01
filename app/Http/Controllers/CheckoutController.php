@@ -136,11 +136,12 @@ class CheckoutController extends Controller
                 $mappedStatus = $this->dokuService->mapStatusResponse($status);
 
                 if ($mappedStatus && $mappedStatus !== $order->status) {
-                    $order->update([
-                        'status' => $mappedStatus,
-                        'doku_response' => $status,
-                        'paid_at' => $mappedStatus === 'paid' ? now() : $order->paid_at,
-                    ]);
+                    $order = $this->dokuService->applyOrderStatus(
+                        $order,
+                        $mappedStatus,
+                        null,
+                        $status,
+                    );
                 }
             }
 

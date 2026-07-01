@@ -10,12 +10,36 @@
 
 @section('content')
 <div class="grid gap-4 md:grid-cols-4">
-    @foreach ([['Barang', $itemCount], ['Kategori', $categoryCount], ['Customer', $customerCount], ['Follow Up Open', $openFollowUpCount], ['Follow Up Selesai', $completedFollowUpCount], ['Total Export', $reportExportCount], ['Total File Upload', $storageFileCount], ['Integration Pending', $pendingIntegrationEventCount], ['Integration Processed', $processedIntegrationEventCount], ['Notifikasi Belum Dibaca', $unreadNotificationCount], ['Percakapan Aktif', $activeConversationCount], ['Percakapan Belum Dibaca', $unreadConversationCount], ['Stok Menipis', $lowStockCount], ['Stok Habis', $emptyStockCount]] as [$label, $value])
+    @foreach ([['Barang', $itemCount], ['Kategori', $categoryCount], ['Customer', $customerCount], ['Follow Up Open', $openFollowUpCount], ['Follow Up Selesai', $completedFollowUpCount], ['Total Export', $reportExportCount], ['Penjualan Hari Ini', $todaySalesCount], ['Pendapatan Hari Ini', 'Rp '.number_format($todayRevenueTotal, 0, ',', '.')], ['Pendapatan Bulan Ini', 'Rp '.number_format($monthlyRevenueTotal, 0, ',', '.')], ['Order Selesai', $paidOrderCount], ['Pembayaran Pending', $pendingOrderCount], ['Pembayaran Gagal', $failedPaymentCount], ['Total Pendapatan', 'Rp '.number_format($paidRevenueTotal, 0, ',', '.')], ['Total File Upload', $storageFileCount], ['Integration Pending', $pendingIntegrationEventCount], ['Integration Processed', $processedIntegrationEventCount], ['Notifikasi Belum Dibaca', $unreadNotificationCount], ['Percakapan Aktif', $activeConversationCount], ['Percakapan Belum Dibaca', $unreadConversationCount], ['Stok Menipis', $lowStockCount], ['Stok Habis', $emptyStockCount]] as [$label, $value])
         <div class="rounded-lg bg-white p-5 shadow-sm">
             <p class="text-sm text-gray-500">{{ $label }}</p>
             <p class="mt-2 text-3xl font-bold">{{ $value }}</p>
         </div>
     @endforeach
+</div>
+<div class="mt-6 grid gap-6 lg:grid-cols-2">
+    <section class="rounded-lg bg-white p-5 shadow-sm">
+        <h2 class="mb-4 font-bold">Ringkasan Status Pembayaran</h2>
+        <div class="space-y-3">
+            @foreach ([['Lunas', $paidOrderCount, 'text-moss'], ['Pending', $pendingOrderCount, 'text-amber'], ['Gagal', $failedPaymentCount, 'text-coral'], ['Expired', $expiredPaymentCount, 'text-gray-500']] as [$label, $value, $color])
+                <div class="flex justify-between border-b pb-3 text-sm">
+                    <span>{{ $label }}</span>
+                    <strong class="{{ $color }}">{{ $value }}</strong>
+                </div>
+            @endforeach
+        </div>
+    </section>
+    <section class="rounded-lg bg-white p-5 shadow-sm">
+        <h2 class="mb-4 font-bold">Tren Pendapatan 7 Hari</h2>
+        <div class="space-y-3">
+            @foreach ($revenueTrend as $trend)
+                <div class="flex justify-between border-b pb-3 text-sm">
+                    <span>{{ $trend['date'] }}</span>
+                    <strong class="text-moss">Rp {{ number_format($trend['total'], 0, ',', '.') }}</strong>
+                </div>
+            @endforeach
+        </div>
+    </section>
 </div>
 <section class="mt-6 rounded-lg bg-white p-5 shadow-sm">
     <h2 class="mb-4 font-bold">Export Laporan Terbaru</h2>

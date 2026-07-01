@@ -70,6 +70,7 @@ class CRMService
     public function createCustomer(array $data, User $actor): Customer
     {
         $this->ensureEmailIsUnique($data['email'] ?? null);
+        $this->ensureExternalIdIsUnique($data['external_customer_id'] ?? null);
 
         $customer = Customer::create($data);
 
@@ -88,6 +89,10 @@ class CRMService
 
         if ($customer->isDirty('email')) {
             $this->ensureEmailIsUnique($data['email'] ?? null, $customer);
+        }
+
+        if ($customer->isDirty('external_customer_id')) {
+            $this->ensureExternalIdIsUnique($data['external_customer_id'] ?? null, $customer);
         }
 
         $customer->save();
@@ -205,6 +210,25 @@ class CRMService
         if ($query->exists()) {
             throw ValidationException::withMessages([
                 'email' => 'Email customer sudah terdaftar.',
+            ]);
+        }
+    }
+
+    private function ensureExternalIdIsUnique(?string $externalId, ?Customer $except = null): void
+    {
+        if (! $externalId) {
+            return;
+        }
+
+        $query = Customer::query()->where('external_customer_id', $externalId);
+
+        if ($except) {
+            $query->whereKeyNot($except->id);
+        }
+
+        if ($query->exists()) {
+            throw ValidationException::withMessages([
+                'external_customer_id' => 'External customer ID sudah terdaftar.',
             ]);
         }
     }

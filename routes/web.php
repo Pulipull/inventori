@@ -78,6 +78,12 @@ Route::middleware('auth')->group(function () {
     Route::get('/reports/stock/pdf', [ReportController::class, 'stockPdf'])->name('reports.stock.pdf')->middleware('role:admin,petugas');
     Route::get('/reports/transactions/{type}', [ReportController::class, 'transactions'])->name('reports.transactions')->middleware('role:admin,petugas');
     Route::get('/reports/transactions/{type}/pdf', [ReportController::class, 'transactionsPdf'])->name('reports.transactions.pdf')->middleware('role:admin,petugas');
+    Route::get('/reports/sales', [ReportController::class, 'sales'])->name('reports.sales')->middleware('role:admin,petugas');
+    Route::get('/reports/sales/pdf', [ReportController::class, 'salesPdf'])->name('reports.sales.pdf')->middleware('role:admin,petugas');
+    Route::get('/reports/payments', [ReportController::class, 'payments'])->name('reports.payments')->middleware('role:admin,petugas');
+    Route::get('/reports/payments/pdf', [ReportController::class, 'paymentsPdf'])->name('reports.payments.pdf')->middleware('role:admin,petugas');
+    Route::get('/reports/revenue', [ReportController::class, 'revenue'])->name('reports.revenue')->middleware('role:admin,petugas');
+    Route::get('/reports/revenue/pdf', [ReportController::class, 'revenuePdf'])->name('reports.revenue.pdf')->middleware('role:admin,petugas');
     Route::get('/reports/exports', [ReportExportController::class, 'index'])->name('reports.exports.index')->middleware('role:admin,petugas');
     Route::post('/reports/exports', [ReportExportController::class, 'store'])->name('reports.exports.store')->middleware('role:admin,petugas');
     Route::get('/reports/exports/{export}', [ReportExportController::class, 'show'])->name('reports.exports.show')->middleware('role:admin,petugas');

@@ -60,7 +60,8 @@ class ChatService
         ]);
 
         $this->markConversationAsRead($conversation, $sender);
-        broadcast(new MessageSent($message))->toOthers();
+        
+        MessageSent::dispatch($message);
 
         return $message;
     }

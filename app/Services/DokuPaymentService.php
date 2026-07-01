@@ -2,21 +2,34 @@
 
 namespace App\Services;
 
+use App\Models\Customer;
+use App\Models\CustomerInteraction;
+use App\Models\Order;
+use App\Models\StockTransaction;
+use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use InvalidArgumentException;
 use RuntimeException;
 use Throwable;
 
 class DokuPaymentService
 {
+    private const ORDER_STATUSES = ['pending', 'paid', 'failed', 'expired'];
+
     private ?string $clientId;
     private ?string $secretKey;
     private string $apiUrl;
 
-    public function __construct()
+    public function __construct(
+        private readonly InventoryService $inventory,
+        private readonly NotificationService $notifications,
+        private readonly CRMService $crm,
+    )
     {
         $this->clientId = config('services.doku.mall_id');
         $this->secretKey = config('services.doku.shared_key');
@@ -186,6 +199,55 @@ class DokuPaymentService
         }
     }
 
+    public function applyOrderStatus(
+        Order $order,
+        string $status,
+        ?string $transactionId = null,
+        array $response = [],
+    ): Order {
+        return DB::transaction(function () use ($order, $status, $transactionId, $response) {
+            if (! in_array($status, self::ORDER_STATUSES, true)) {
+                throw new RuntimeException('Status pembayaran tidak valid.');
+            }
+
+            $order = Order::query()
+                ->with(['item', 'user'])
+                ->whereKey($order->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            $previousStatus = $order->status;
+
+            if ($previousStatus === 'paid' && $status !== 'paid') {
+                Log::warning('Ignoring stale Doku status for paid order', [
+                    'order_id' => $order->id,
+                    'invoice_number' => $order->invoice_number,
+                    'current_status' => $previousStatus,
+                    'incoming_status' => $status,
+                ]);
+
+                return $order;
+            }
+
+            $order->update([
+                'status' => $status,
+                'doku_transaction_id' => $transactionId ?: $order->doku_transaction_id,
+                'doku_response' => $response ?: $order->doku_response,
+                'paid_at' => $status === 'paid' ? ($order->paid_at ?: now()) : $order->paid_at,
+            ]);
+
+            if ($previousStatus !== 'paid' && $status === 'paid') {
+                $this->handlePaidOrder($order->fresh(['item', 'user']));
+            }
+
+            if ($previousStatus !== $status && in_array($status, ['failed', 'expired'], true)) {
+                $this->notifyBuyerPaymentStatus($order->fresh('user'), $status);
+            }
+
+            return $order->fresh(['item', 'user']);
+        });
+    }
+
     public function verifyCallbackSignature(Request $request): bool
     {
         if (! filled($this->clientId) || ! filled($this->secretKey)) {
@@ -241,6 +303,185 @@ class DokuPaymentService
             'PENDING', 'REDIRECT', 'ORDER_GENERATED', 'ORDER_GENERATE' => 'pending',
             default => null,
         };
+    }
+
+    private function handlePaidOrder(Order $order): void
+    {
+        $this->recordInventoryTransaction($order);
+        $this->notifyPaymentSuccess($order);
+        $this->recordCrmPaymentInteraction($order);
+    }
+
+    private function recordInventoryTransaction(Order $order): void
+    {
+        if (! $order->item || ! $order->user) {
+            return;
+        }
+
+        $notes = $this->paymentCompletedDescription($order);
+
+        $alreadyRecorded = StockTransaction::query()
+            ->where('item_id', $order->item_id)
+            ->where('user_id', $order->user_id)
+            ->where('type', StockTransaction::TYPE_OUT)
+            ->where('notes', $notes)
+            ->exists();
+
+        if ($alreadyRecorded) {
+            return;
+        }
+
+        try {
+            $this->inventory->record(
+                $order->item,
+                $order->user,
+                StockTransaction::TYPE_OUT,
+                1,
+                now()->toDateString(),
+                $notes,
+            );
+        } catch (InvalidArgumentException $exception) {
+            Log::warning('Paid order could not record inventory transaction', [
+                'order_id' => $order->id,
+                'invoice_number' => $order->invoice_number,
+                'item_id' => $order->item_id,
+                'message' => $exception->getMessage(),
+            ]);
+
+            $this->notifyAdminsInventoryIssue($order, $exception->getMessage());
+        }
+    }
+
+    private function notifyPaymentSuccess(Order $order): void
+    {
+        if ($order->user) {
+            $this->notifications->create(
+                $order->user,
+                'Pembayaran berhasil',
+                'Pembayaran untuk order '.$order->invoice_number.' berhasil.',
+                'success',
+                'system',
+            );
+        }
+
+        User::query()
+            ->where('role', 'admin')
+            ->each(fn (User $admin) => $this->notifications->create(
+                $admin,
+                'Pembayaran diterima',
+                'Order '.$order->invoice_number.' sudah dibayar.',
+                'success',
+                'system',
+            ));
+    }
+
+    private function notifyBuyerPaymentStatus(Order $order, string $status): void
+    {
+        if (! $order->user) {
+            return;
+        }
+
+        $message = $status === 'expired'
+            ? 'Pembayaran untuk order '.$order->invoice_number.' sudah expired.'
+            : 'Pembayaran untuk order '.$order->invoice_number.' gagal.';
+
+        $this->notifications->create(
+            $order->user,
+            $status === 'expired' ? 'Pembayaran expired' : 'Pembayaran gagal',
+            $message,
+            $status === 'expired' ? 'warning' : 'danger',
+            'system',
+        );
+    }
+
+    private function notifyAdminsInventoryIssue(Order $order, string $message): void
+    {
+        User::query()
+            ->where('role', 'admin')
+            ->each(fn (User $admin) => $this->notifications->create(
+                $admin,
+                'Stok order perlu dicek',
+                'Order '.$order->invoice_number.' sudah dibayar, tetapi stok gagal dicatat: '.$message,
+                'warning',
+                'system',
+            ));
+    }
+
+    private function recordCrmPaymentInteraction(Order $order): void
+    {
+        if (! $order->user) {
+            return;
+        }
+
+        $customer = $this->customerForOrder($order);
+
+        if (! $customer) {
+            return;
+        }
+
+        $description = $this->paymentCompletedDescription($order);
+
+        $alreadyRecorded = CustomerInteraction::query()
+            ->where('customer_id', $customer->id)
+            ->where('type', 'order')
+            ->where('description', $description)
+            ->exists();
+
+        if ($alreadyRecorded) {
+            return;
+        }
+
+        $this->crm->logInteraction($customer, $order->user, [
+            'type' => 'order',
+            'summary' => 'Order '.$order->invoice_number.' paid',
+            'description' => $description,
+            'occurred_at' => $order->paid_at ?: now(),
+        ]);
+    }
+
+    private function customerForOrder(Order $order): ?Customer
+    {
+        $user = $order->user;
+
+        if (! $user) {
+            return null;
+        }
+
+        $customer = Customer::query()
+            ->where('user_id', $user->id)
+            ->first();
+
+        if (! $customer && $user->email) {
+            $customer = Customer::query()
+                ->whereRaw('LOWER(email) = ?', [mb_strtolower($user->email)])
+                ->first();
+        }
+
+        if ($customer) {
+            if (! $customer->user_id) {
+                $this->crm->updateCustomer($customer, ['user_id' => $user->id], $user);
+                $customer->refresh();
+            }
+
+            return $customer;
+        }
+
+        return $this->crm->createCustomer([
+            'external_customer_id' => 'USER-'.$user->id,
+            'user_id' => $user->id,
+            'source' => 'payment',
+            'name' => $user->name,
+            'email' => $user->email,
+            'phone' => null,
+            'company' => null,
+            'status' => 'active',
+            'notes' => 'Customer dibuat otomatis dari payment order '.$order->invoice_number.'.',
+        ], $user);
+    }
+
+    private function paymentCompletedDescription(Order $order): string
+    {
+        return 'Payment completed for order '.$order->invoice_number;
     }
 
     private function headers(string $method, string $targetPath, ?array $body = null): array

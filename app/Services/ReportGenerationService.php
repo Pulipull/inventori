@@ -60,6 +60,9 @@ class ReportGenerationService
             'stock' => route('reports.stock.pdf'),
             'transactions_in' => route('reports.transactions.pdf', ['type' => 'in'] + ($export->filters ?? [])),
             'transactions_out' => route('reports.transactions.pdf', ['type' => 'out'] + ($export->filters ?? [])),
+            'sales' => route('reports.sales.pdf', $export->filters ?? []),
+            'payments' => route('reports.payments.pdf', $export->filters ?? []),
+            'revenue' => route('reports.revenue.pdf', $export->filters ?? []),
             default => route('reports.exports.show', $export),
         };
     }
