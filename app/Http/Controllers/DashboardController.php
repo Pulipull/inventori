@@ -42,6 +42,7 @@ class DashboardController extends Controller
                     ->latest()
                     ->limit(8)
                     ->get(),
+                'feedbacks' => $crm->recentUserFeedback($user),
             ]);
         }
 
@@ -109,6 +110,7 @@ class DashboardController extends Controller
             'recentTransactions' => StockTransaction::with(['item', 'user'])->latest()->limit(8)->get(),
             'lowItems' => Item::with('category')->whereColumn('stock', '<=', 'minimum_stock')->orderBy('stock')->limit(8)->get(),
             'recentCrmActivities' => $crm->recentActivities(),
+            'feedbackStats' => $crm->feedbackStatistics(),
         ]);
     }
 }

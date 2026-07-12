@@ -42,4 +42,9 @@ class Customer extends Model
     {
         return $this->hasMany(CrmActivity::class);
     }
+
+    public function feedback(): HasMany
+    {
+        return $this->hasMany(CustomerFeedback::class);
+    }
 }

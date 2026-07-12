@@ -10,6 +10,7 @@ use App\Events\CustomerInteractionLogged;
 use App\Events\CustomerUpdated;
 use App\Models\CrmActivity;
 use App\Models\Customer;
+use App\Models\CustomerFeedback;
 use App\Models\CustomerFollowUp;
 use App\Models\CustomerInteraction;
 use App\Models\User;
@@ -193,6 +194,183 @@ class CRMService
             ->latest('created_at')
             ->limit($limit)
             ->get();
+    }
+
+    public function feedbacks(Request $request)
+    {
+        return CustomerFeedback::query()
+            ->with(['customer', 'user', 'order.item', 'replier'])
+            ->when($request->search, function ($query, string $search): void {
+                $query->where(function ($nested) use ($search): void {
+                    $nested->where('title', 'like', "%{$search}%")
+                        ->orWhere('feedback', 'like', "%{$search}%")
+                        ->orWhereHas('customer', fn ($customer) => $customer
+                            ->where('name', 'like', "%{$search}%")
+                            ->orWhere('email', 'like', "%{$search}%"))
+                        ->orWhereHas('user', fn ($user) => $user
+                            ->where('name', 'like', "%{$search}%")
+                            ->orWhere('email', 'like', "%{$search}%"))
+                        ->orWhereHas('order', fn ($order) => $order->where('invoice_number', 'like', "%{$search}%"));
+                });
+            })
+            ->when($request->category, fn ($query, string $category) => $query->where('category', $category))
+            ->when($request->status, fn ($query, string $status) => $query->where('status', $status))
+            ->when($request->rating, fn ($query, string $rating) => $query->where('rating', (int) $rating))
+            ->latest()
+            ->paginate(12)
+            ->withQueryString();
+    }
+
+    public function userFeedbacks(User $user, int $perPage = 10)
+    {
+        return CustomerFeedback::query()
+            ->with(['order.item', 'replier'])
+            ->where('user_id', $user->id)
+            ->latest()
+            ->paginate($perPage)
+            ->withQueryString();
+    }
+
+    public function recentUserFeedback(User $user, int $limit = 5)
+    {
+        return CustomerFeedback::query()
+            ->with(['order.item', 'replier'])
+            ->where('user_id', $user->id)
+            ->latest()
+            ->limit($limit)
+            ->get();
+    }
+
+    public function createFeedback(User $actor, array $data): CustomerFeedback
+    {
+        $customer = $this->customerForFeedback($actor);
+
+        $feedback = CustomerFeedback::create([
+            ...$data,
+            'customer_id' => $customer->id,
+            'user_id' => $actor->id,
+            'status' => CustomerFeedback::STATUS_PENDING,
+        ]);
+
+        $this->logFeedbackActivity($feedback, $actor, 'feedback_created', 'Customer feedback submitted.');
+
+        return $feedback;
+    }
+
+    public function updateFeedback(CustomerFeedback $feedback, User $actor, array $data): CustomerFeedback
+    {
+        $wasResolved = $feedback->status === CustomerFeedback::STATUS_RESOLVED;
+        $hasReply = array_key_exists('admin_reply', $data) && filled($data['admin_reply']);
+
+        $feedback->fill([
+            'status' => $data['status'],
+            'admin_reply' => $data['admin_reply'] ?? null,
+        ]);
+
+        if ($hasReply && $feedback->isDirty('admin_reply')) {
+            $feedback->replied_by = $actor->id;
+            $feedback->replied_at = now();
+        }
+
+        if ($data['status'] === CustomerFeedback::STATUS_RESOLVED && ! $feedback->resolved_at) {
+            $feedback->resolved_at = now();
+        }
+
+        if ($data['status'] !== CustomerFeedback::STATUS_RESOLVED) {
+            $feedback->resolved_at = null;
+        }
+
+        if ($feedback->isDirty()) {
+            $feedback->save();
+        }
+
+        if ($hasReply) {
+            $this->logFeedbackActivity($feedback, $actor, 'feedback_replied', 'Admin replied to customer feedback.');
+        }
+
+        if (! $wasResolved && $feedback->status === CustomerFeedback::STATUS_RESOLVED) {
+            $this->logFeedbackActivity($feedback, $actor, 'feedback_resolved', 'Customer feedback marked resolved.');
+        }
+
+        return $feedback;
+    }
+
+    public function resolveFeedback(CustomerFeedback $feedback, User $actor): CustomerFeedback
+    {
+        if ($feedback->status !== CustomerFeedback::STATUS_RESOLVED) {
+            $feedback->forceFill([
+                'status' => CustomerFeedback::STATUS_RESOLVED,
+                'resolved_at' => now(),
+            ])->save();
+
+            $this->logFeedbackActivity($feedback, $actor, 'feedback_resolved', 'Customer feedback marked resolved.');
+        }
+
+        return $feedback;
+    }
+
+    public function feedbackStatistics(): array
+    {
+        $summary = CustomerFeedback::query()
+            ->selectRaw("coalesce(sum(case when status = 'pending' then 1 else 0 end), 0) as pending")
+            ->selectRaw("coalesce(sum(case when status = 'reviewed' then 1 else 0 end), 0) as reviewed")
+            ->selectRaw("coalesce(sum(case when status = 'resolved' then 1 else 0 end), 0) as resolved")
+            ->selectRaw('coalesce(avg(rating), 0) as average_rating')
+            ->first();
+
+        return [
+            'pending' => (int) ($summary->pending ?? 0),
+            'reviewed' => (int) ($summary->reviewed ?? 0),
+            'resolved' => (int) ($summary->resolved ?? 0),
+            'average_rating' => round((float) ($summary->average_rating ?? 0), 1),
+        ];
+    }
+
+    private function customerForFeedback(User $actor): Customer
+    {
+        $customer = Customer::where('user_id', $actor->id)->first();
+
+        if ($customer) {
+            return $customer;
+        }
+
+        if ($actor->email) {
+            $customer = Customer::whereRaw('LOWER(email) = ?', [mb_strtolower($actor->email)])->first();
+
+            if ($customer) {
+                if (! $customer->user_id) {
+                    $customer->update(['user_id' => $actor->id]);
+                }
+
+                return $customer;
+            }
+        }
+
+        return Customer::create([
+            'user_id' => $actor->id,
+            'source' => 'feedback',
+            'name' => $actor->name,
+            'email' => $actor->email,
+            'status' => 'active',
+        ]);
+    }
+
+    private function logFeedbackActivity(CustomerFeedback $feedback, User $actor, string $type, string $description): void
+    {
+        CrmActivity::create([
+            'customer_id' => $feedback->customer_id,
+            'type' => $type,
+            'description' => $description,
+            'metadata' => [
+                'feedback_id' => $feedback->id,
+                'rating' => $feedback->rating,
+                'category' => $feedback->category,
+                'status' => $feedback->status,
+                'order_id' => $feedback->order_id,
+            ],
+            'created_by' => $actor->id,
+            'created_at' => now(),
+        ]);
     }
 
     private function ensureEmailIsUnique(?string $email, ?Customer $except = null): void
